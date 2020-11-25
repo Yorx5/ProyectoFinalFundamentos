@@ -1,0 +1,830 @@
+---
+title: "Máster en Big Data. Fundamentos  matemáticos  del  análisis  de  datos."
+author: "Jorge Rivera Rueda"
+date: 'Curso 2020-21.'
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Proyecto Final.
+---
+
+## Introducción
+
+En este proyecto se va a hacer una exploración y análisis de un conjunto de datos descargado desde Kaggle. El conjunto de datos que se va a utilizar es un csv que contiene información sobre los vuelos realizados en Estados Unidos en enero de 2019. El dataset comprende información de todos los vuelos realizados por las diferentes compañías aéreas desde el 1 de enero hasta el 31 del mismo mes y para todos los aeropuertos del país.
+
+El enlace donde se puede encontrar el dataset en Kaggle es: https://www.kaggle.com/divyansh22/flight-delay-prediction?select=Jan_2019_ontime.csv
+
+<p>&nbsp;</p>
+
+
+## Carga de librerías
+
+A continuación es necesario cargar las librerías que se necesitan para hacer la exploración y poder leer el conjunto de datos:
+
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(DataExplorer)
+library(maps)
+```
+
++ La librería tidyverse es necesaria para poder leer el fichero csv y más cosas.
++ La librería ggplot2 se va a utilizar para hacer diferentes representaciones y análisis del conjunto de datos para buscar relaciones y hacer comparaciones entre las variables.
++ La librería DataExplorer nos permitirá obtener una primera exploración de los datos y ver la normalidad de los mismos entre otras cosas.
++ La librería maps permite representar regiones mediante un mapa y será muy útil para hacernos una idea de la localización de los aeropuertos desde los que salieron y a los que llegaron los diferentes vuelos.
+
+<p>&nbsp;</p>
+
+
+## Leer el fichero que contiene el dataset
+
+El siguiente paso es leer el dataset, que en mi caso es un archivo csv:
+
+```{r}
+vuelos = read_csv("Data/Jan_2019_ontime.csv")
+```
+
+<p>&nbsp;</p>
+
+
+## Exploración inicial de los datos 
+
+Lo primero que hay que hacer es conocer cómo es el dataset, qué dimensiones tiene, cuántas variables y observaciones hay, de qué tipo es cada una de las variables...
+
+```{r}
+dim(vuelos)
+```
+
+El dataset tiene 583985 observaciones y 22 variables.
+
+<p>&nbsp;</p>
+
+```{r}
+str(vuelos)
+```
+
+```{r}
+glimpse(vuelos)
+```
+
+Las variables son de diferentes tipos, hay tanto variables de tipo num como de tipo char. Hay variables discretas, como por ejemplo OP_CARRIER, y también hay variables continuas como puede ser DAY_OF_MONTH o ORIGIN_AIRPORT_ID.
+
+<p>&nbsp;</p>
+
+
+Si queremos conocer información más en detalle de cada una de las variables podemos utilizar summary:
+
+```{r}
+summary(vuelos)
+```
+
+
+Antes de continuar se van a explicar cada una de las variables del conjunto de datos para entender mejor lo que representan, ya que muchas de ellas son abreviaturas o puede no quedar del todo claro lo que significan:
+
++ DAY_OF_MONTH: variable que indica el día del mes en el que se produjo el vuelo. Los posibles valores van de 1 a 31.
++ DAY_OF_WEEK: variable que indica el día de la semana en el que se produjo el vuelo. Los posibles valores van de 1 a 7.
++ OP_UNIQUE_CARRIER: código alfanumérico de transportista único, identifica a cada uno de los operadores o aerolíneas que han operado durante ese mes.
++ OP_CARRIER_AIRLINE_ID: número de identificación asignado por la US DOT a cada una de las compañías aéreas.
++ OP_CARRIER: código asignado por IATA y utilizado para identificar a cada operador.
++ TAIL_NUM: variable que indica el número presente en la cola de los aviones que los identifica.
++ OP_CARRIER_FL_NUM: variable que indica el número de vuelo.
++ ORIGIN_AIRPORT_ID: variable que indica el número de identificación asignado por US DOT para identificar un aeropuerto único de origen.
++ ORIGIN_AIRPORT_SEQ_ID: variable que indica el número de identificación asignado por US DOT para identificar un aeropuerto único de origen en un momento determinado.
++ ORIGIN: siglas del aeropuerto de origen.
++ DEST_AIRPORT_ID: variable que indica el número de identificación asignado por US DOT para identificar un aeropuerto único de destino.
++ DEST_AIRPORT_SEQ_ID: variable que indica el número de identificación asignado por US DOT para identificar un aeropuerto único de destino en un momento determinado.
++ DEST: siglas del aeropuerto de destino.
++ DEP_TIME: variable que indica la hora de salida real del vuelo.
++ DEP_DEL15: indicador de retraso de salida, si es 1 significa que el retraso ha sido de 15 minutos o más, si es 0 es que no.
++ DEP_TIME_BLK: bloque de hora de salida del vuelo, los bloques van de hora en hora.
++ ARR_TIME: variable que indica la hora de llegada real del vuelo.
++ ARR_DEL15: indicador de retraso de llegada, si es 1 significa que el retraso ha sido de 15 minutos o más, si es 0 es que no.
++ CANCELLED: indicador de cancelación del vuelo, si es 1 significa que el vuelo se ha cancelado y si es 0 que no.
++ DIVERTED: indicador de vuelo desviado, si es 1 significa que el vuelo se ha desviado y si es 0 que no.
++ DISTANCE: variable que indica la distancia entre los aeropuertos de origen y destino en millas.
+
+<p>&nbsp;</p>
+
+
+Es interesante conocer si el dataset está completo o si hay valores ausentes:
+
+```{r}
+all(complete.cases(vuelos))
+```
+
+Al ser el resultado FALSE, podemos comprobar que el dataset tiene datos ausentes, por lo que habrá que hacer una limpieza del mismo y eliminar los NA.
+
+Si miramos con más detalle los datos ausentes, podemos observar que en todas las filas del dataset hay valores ausentes, lo que lleva a pensar que la principal causa de que haya NAs en todas las filas es la variable X22, que como se ha visto anteriormente es una variable en la que todas las observaciones son datos ausentes.
+
+<p>&nbsp;</p>
+
+
+## Limpieza del dataset para eliminar los datos ausentes y conversión de variables
+
+Lo primero que se va a hacer es eliminar o no tener en cuenta la variable X22, ya que no aporta ninguna información:
+
+```{r}
+del <- c('X22')
+vuelos2 <- vuelos[ , -which(names(vuelos) %in% del)]
+```
+
+Comprobamos como ha quedado el dataset después de eliminar la variable X22:
+
+```{r}
+all(complete.cases(vuelos2))
+```
+
+Aun quedan NAs, por lo que habrá que hacer otra limpieza y quedarnos con las observaciones que no tengan datos ausentes.
+
+```{r}
+vuelos3 <- na.omit(vuelos2)
+```
+
+Comprobamos que ya no tenemos datos ausentes:
+
+```{r}
+all(complete.cases(vuelos3))
+```
+
+Después de esta limpieza se ha conseguido que no haya elementos ausentes en el conjunto de datos con el que vamos a trabajar.
+
+<p>&nbsp;</p>
+
+
+Algunas de las variables que aparecen en el dataset tienen valores de 0 o 1, estas variables se van a pasar a factor para que sean más explicativas y fáciles de interpretar.
+
+```{r}
+vuelos3$DEP_DEL15 = factor(vuelos3$DEP_DEL15, labels = c("Retraso salida menos 15 mins", "Retraso salida 15 mins o más"))
+vuelos3$ARR_DEL15 = factor(vuelos3$ARR_DEL15, labels = c("Retraso llegada menos 15 mins", "Retraso llegada 15 mins o más"))
+vuelos3$CANCELLED = factor(vuelos3$CANCELLED, labels = c("Vuelo NO cancelado"))
+vuelos3$DIVERTED = factor(vuelos3$DIVERTED, labels = c("Vuelo NO desviado"))
+```
+
+<p>&nbsp;</p>
+
+
+## Exploración inicial de los datos después de la limpieza y de la conversión de variables
+
+Al igual que se hizo antes, es interesante analizar el dataset resultante después de hacer la limpieza.
+
+```{r}
+dim(vuelos3)
+```
+
+El número de observaciones que hay ahora es de 565963 y el número de variables es 21, como era de esperar al haber eliminado solamente la variable X22.
+
+El summary de los datos que se obtiene ahora es el siguiente:
+
+```{r}
+summary(vuelos3)
+```
+
+<p>&nbsp;</p>
+
+
+## Exploración de los datos mediante DataExplorer
+
+Mediante la librería DataExplorer se puede obtener distinta información muy interesante sobre el conjunto de datos que nos ayuda a conocerlo más y nos permite explorarlo con más detalle.
+
+Primero se obtiene el resumen del número de observaciones, número de variables, tipos de variables, si hay datos ausentes y más información tanto de manera numérica como de manera gráfica:
+
+```{r}
+introduce(vuelos3)
+```
+
+```{r}
+plot_str(vuelos3)
+```
+
+```{r}
+plot_intro(vuelos3, title = "Información general sobre las variables")
+```
+
+Como se puede observar, la mayoría de las variables que hay en el dataset son de tipo discreto después de hacer la conversión de variables, en concreto el 57% de las variables.
+
+<p>&nbsp;</p>
+
+
+Al trabajar con un conjunto de datos y analizarlo, lo ideal es que el dataset sea lo más completo posible y que no haya valores desconocidos o que estos sean mínimos, en mi caso esto se cumple a la perfección ya que todas las variables están completas y no falta ningún valor como se puede ver a continuación:
+
+```{r}
+plot_missing(vuelos3, title = "Análisis de la falta de datos de las variables")
+```
+
+<p>&nbsp;</p>
+
+
+Es interesante también analizar la normalidad de las variables del dataset:
+
+```{r}
+plot_qq(vuelos3, title = "Análisis de la normalidad de las variables")
+```
+
+Ninguna variable sigue una distribución parecida a la normal ya que en todas aparece una cola a la derecha y otra a la izquierda.
+
+<p>&nbsp;</p>
+
+
+## Exploración del dataset de aeropuertos
+
+Es interesante ver dónde se encuentran los aeropuertos desde los que salen y a los que llegan los vuelos, ya que de esta manera se entiende mejor la distancia recorrida, la hora de salida y de llegada...
+
+Antes de nada es necesario buscar el conjunto de datos con esta información, que se encuentra en el enlace de Kaggle: https://www.kaggle.com/usdot/flight-delays?select=airports.csv
+
+Como siempre, hay que leer el fichero, que vuelve a ser un csv:
+
+```{r}
+aeropuertos = read_csv("Datos/airports.csv")
+```
+
+Antes de hacer una representación hay que ver cómo son los datos y qué información útil podemos extraer de ellos.
+
+```{r}
+dim(aeropuertos)
+```
+
+El número de observaciones del dataset es 322 y el número de variables es 7.
+
+```{r}
+str(aeropuertos)
+```
+
+```{r}
+glimpse(aeropuertos)
+```
+
+La mayoría de las variables son de tipo char excepto las variables que hacen referencia a la latitud y la longitud que son de tipo numérico.
+
+Mediante summary vemos información adicional sobre cada una de las variables:
+
+```{r}
+summary(aeropuertos)
+```
+
+<p>&nbsp;</p>
+
+
+En este caso se puede entender bien lo que significa cada una de las variables, pero aun así se van a explicar para que no haya dudas:
+
++ IATA_CODE: código formado por grupos de tres letras que designan a cada aeropuerto del mundo, son asignados por la Asociación Internacional de Transporte Aéreo.
++ AIRPORT: indica el nombre de cada uno de los aeropuertos.
++ CITY: hace referencia a la ciudad de Estados Unidos en la que se encuentra cada aeropuerto.
++ STATE: hace referencia al estado de Estados Unidos donde se encuentra cada aeropuerto.
++ COUNTRY: hace referencia al país en el que se encuentra cada aeropuerto, en este caso es siempre USA.
++ LATITUDE: indica la latitud en la que se encuentra cada aeropuerto.
++ LONGITUDE: indica la longitud en la que se encuentra cada aeropuerto.
+
+<p>&nbsp;</p>
+
+
+Al conocer la latitud y la longitud de cada uno de los aeropuertos, la manera más rápida y mejor de representar los datos es mediante un mapa de Estados Unidos en el que se pueda ver la localización de los mismos.
+
+Mediante la librería map se representa el mapa de Estados Unidos y después se añaden los puntos de cada uno de los aeropuertos:
+
+```{r}
+{map('usa')
+points(x = aeropuertos$LONGITUDE, y = aeropuertos$LATITUDE, col = "blue")
+title(main = "Aeropuertos en Estados Unidos")}
+```
+
+Como en este mapa no se incluye Alaska, Hawái o Puerto Rico, se representa también el mapa del mundo para que se vean los aeropuertos que se encuentran en los lugares que no se ven en el mapa anterior:
+
+```{r}
+{map('world')
+points(x = aeropuertos$LONGITUDE, y = aeropuertos$LATITUDE, col = "blue")
+title(main = "Aeropuertos en Estados Unidos")}
+```
+
+<p>&nbsp;</p>
+
+
+## Análisis de indidencias en los vuelos
+
+Una vez que conocemos en detalle el conjunto de datos e incluso conocemos la localización de cada uno de los aeropuertos, se puede empezar a explorar con más profundidad el dataset y a obtener información interesante.
+
+Lo primero que nos interesa conocer son los vuelos que se cancelaron, esta información se encuentra en la variable CANCELLED.
+
+```{r}
+summary(vuelos3$CANCELLED)
+```
+
+Como se puede comprobar, no se canceló ningún vuelo en enero de 2019.
+
+<p>&nbsp;</p>
+
+
+También es de interés comprobar si hubo algún vuelo que se desvió de su destino original, esta información se puede ver gracias a la variable DIVERTED.
+
+```{r}
+summary(vuelos3$DIVERTED)
+```
+
+Al igual que sucedió con los vuelos cancelados, ningún vuelo fue desviado de su destino.
+
+Estos resultados eran los previstos ya que cuando se convirtió la variable a factor, todos las observaciones valían lo mismo, 0.
+
+<p>&nbsp;</p>
+
+
+Ya que ningún vuelo se canceló o se desvió en enero de 2019 en Estados Unidos, se va a mirar si hubo algún vuelo que salió o llegó con retraso, ya que en caso de no haberlos, enero de 2019 fue un mes excepcional para la puntualidad y eficiencia de los aviones. Se va a considerar que un vuelo se retrasó si el retraso de salida o de llegada es mayor o igual a 15 mins.
+
+```{r}
+summary(vuelos3$DEP_DEL15)
+```
+
+```{r}
+summary(vuelos3$ARR_DEL15)
+```
+
+Si que hubo vuelos con retrasos, en concreto hubo más vuelos con retraso de llegada que de salida, esto se puede explicar debido a que hubo turbulencias o fenómenos climatológicos adversos durante el trayecto.
+
+<p>&nbsp;</p>
+
+
+De manera gráfica se puede entender mejor la cantidad de vuelos con retraso y sin retraso:
+
+```{r}
+plot(vuelos3$DEP_DEL15, main = "Vuelos de salida con retraso")
+```
+
+```{r}
+plot(vuelos3$ARR_DEL15, main = "Vuelos de llegada con retraso")
+```
+
+Se calcula también el porcentaje de vuelos con retraso:
+
+```{r}
+prop.table(table(vuelos3$DEP_DEL15))
+addmargins(prop.table(table(vuelos3$DEP_DEL15)))
+```
+
+Un 17.37% de los vuelos realizados en enero salieron con 15 minutos o más de retraso.
+
+```{r}
+prop.table(table(vuelos3$ARR_DEL15))
+addmargins(prop.table(table(vuelos3$ARR_DEL15)))
+```
+
+Mientras que un 18.59% de los vuelos llegaron con retraso a su destino.
+
+<p>&nbsp;</p>
+
+
+Ahora se van a analizar las posibles causas de estos retrasos, para ello se va a obtener qué aeropuertos son los que acumulan más retrasos.
+
+Los retrasos de salida de cada uno de los aeropuertos son:
+
+```{r}
+aeropuertos_retrasos_salida = vuelos3 %>% 
+  filter(DEP_DEL15 == "Retraso salida 15 mins o más") %>%
+  group_by(ORIGIN) %>%
+  count(DEP_DEL15)
+aeropuertos_retrasos_salida
+```
+
+Seleccionamos el aeropuerto con mayor número de vuelos que despegan con un retraso de 15 minutos o más:
+
+```{r}
+aeropuertos_retrasos_salida %>% filter(n == max(aeropuertos_retrasos_salida$n))
+```
+
+El aeropuerto internacional de Chicago-O'Hare (ORD), en la ciudad de Chicago, es el aeropuerto que acumula un mayor número de vuelos con retraso en su salida, un total de 6560 vuelos. Este aeropuerto es uno de los mayores del país y de los que tienen mayor tráfico de pasajeros.
+
+```{r}
+aeropuertos_retrasos_salida %>% filter(n == min(aeropuertos_retrasos_salida$n))
+```
+
+Mientras que los aeropuertos regionales de Elmira/Corning (ELM) en Nueva York y de Stillwater (SWO) en Oklahoma son los aeropuertos de los que despegan menos vuelos con retraso, únicamente un vuelo cada uno.
+
+<p>&nbsp;</p>
+
+
+Hacemos lo mismo pero con los retrasos en las llegadas:
+
+```{r}
+aeropuertos_retrasos_llegada = vuelos3 %>% 
+  filter(ARR_DEL15 == "Retraso llegada 15 mins o más") %>%
+  group_by(ORIGIN) %>%
+  count(ARR_DEL15)
+aeropuertos_retrasos_llegada
+```
+
+Como antes, primero calculamos el aeropuerto con mayor cantidad de vuelos que llegan con retraso:
+
+```{r}
+aeropuertos_retrasos_llegada %>% filter(n == max(aeropuertos_retrasos_llegada$n))
+```
+
+Otra vez, el aeropuerto internacional de Chicago-O'Hare (ORD) es el que tiene una mayor cantidad de vuelos que aterrizan con un retraso de 15 minutos o más, 7655 vuelos en total.
+
+```{r}
+aeropuertos_retrasos_llegada %>% filter(n == min(aeropuertos_retrasos_llegada$n))
+```
+
+El aeropuerto de Adak (ADK) en Alaska y el aeropuerto de Casper/Natrona County (CPR) en Wyoming son los aeropuertos con menos vuelos que llegan con retraso, uno cada uno.
+
+<p>&nbsp;</p>
+
+
+Claramente se puede ver que que los aeropuertos grandes acumulan más retrasos que los aeropuertos regionales, al tener que operar estos una mayor cantidad de vuelos y tener mayor afluencia de pasajeros. Otra posible razón de que el aeropuerto de Chicago sea el que acumula una mayor cantidad de retrasos es que dicha ciudad se caracteriza por su mal tiempo, lo que puede complicar considerablemente el correcto funcionamiento del mismo, especialmente en invierno, justo de cuando son los datos que estamos analizando.
+
+La localización del aeropuerto de Chicago-O'Hare es:
+
+```{r}
+aeropuerto_mas_retrasos <- aeropuertos %>%
+  filter(IATA_CODE == "ORD")
+aeropuerto_mas_retrasos
+```
+
+```{r}
+{map('usa')
+points(x = aeropuerto_mas_retrasos$LONGITUDE, y = aeropuerto_mas_retrasos$LATITUDE, col = "blue")
+title(main = "Aeropuerto de Chicago-O'Hare")}
+```
+
+<p>&nbsp;</p>
+
+
+Al igual que se ha hecho con los aeropuertos, se va a analizar qué aerolíneas son las que acumulan más retrasos, ya que se tiende a pensar que las aerolíneas de bajo costo funcionan peor que las normales y por eso suelen ser menos puntuales.
+
+Comenzamos con los vuelos con retraso en la salida:
+
+```{r}
+aerolineas_retrasos_salida = vuelos3 %>% 
+  filter(DEP_DEL15 == "Retraso salida 15 mins o más") %>%
+  group_by(OP_CARRIER) %>%
+  count(DEP_DEL15)
+aerolineas_retrasos_salida
+```
+
+Al ser el número de aerolíneas considerablemnte inferior al de aeropuertos, se puede representar gráficamente el resultado:
+
+```{r}
+ggplot(aerolineas_retrasos_salida) + geom_col(aes(x = OP_CARRIER, y = n)) + ggtitle("Número de vuelos con retraso en la salida")
+```
+
+```{r}
+aerolineas_retrasos_salida %>% filter(n == max(aerolineas_retrasos_salida$n))
+```
+
+```{r}
+aerolineas_retrasos_salida %>% filter(n == min(aerolineas_retrasos_salida$n))
+```
+
+Claramente se puede ver que la aerolínea Southwest Airlines Co. (WN) es la que acumula un mayor número de vuelos que despegan con retraso, en concreto 18466 vuelos, mientras que la aerolínea Hawaiian Airlines Inc. (HA) es la que menos, únicamente 585 vuelos con retraso en la salida.
+
+<p>&nbsp;</p>
+
+
+Se repite el proceso pero ahora con los retrasos en las llegadas:
+
+```{r}
+aerolineas_retrasos_llegada = vuelos3 %>% 
+  filter(ARR_DEL15 == "Retraso llegada 15 mins o más") %>%
+  group_by(OP_CARRIER) %>%
+  count(ARR_DEL15)
+aerolineas_retrasos_llegada
+```
+
+```{r}
+ggplot(aerolineas_retrasos_llegada) + geom_col(aes(x = OP_CARRIER, y = n)) + ggtitle("Número de vuelos con retraso en la llegada")
+```
+
+```{r}
+aerolineas_retrasos_llegada %>% filter(n == max(aerolineas_retrasos_llegada$n))
+```
+
+```{r}
+aerolineas_retrasos_llegada %>% filter(n == min(aerolineas_retrasos_llegada$n))
+```
+
+Se repiten los mismos resultados que se obtuvieron con los retrasos en el despegue, la aerolínea Southwest Airlines Co. (WN) es la que acumula mayor cantidad de vuelos con retraso a la hora de aterrizar, 16111 vuelos, mientras que la aerolínea Hawaiian Airlines Inc. (HA) es la que menos, solo 851 vuelos.
+
+<p>&nbsp;</p>
+
+
+Teniendo en cuenta que Southwest Airlines Co. es la mayor aerolínea bajo costo de Estados Unidos y del mundo, y es la que transporta una mayor cantidad de pasajeros en el país, se entiende que esta sea la que acumula una mayor cantidad de retrasos.
+
+Mientras que Hawaiian Airlines Inc. es una aerolínea que opera vuelos entre las islas de Hawái, por lo que su tamaño es mucho menor y tiene más facilidad para conseguir ser puntual.
+
+<p>&nbsp;</p>
+
+
+## Análisis de la distancia de los vuelos
+
+Una medida que proporciona información muy valiosa es la distancia recorrida por cada uno de los vuelos, ya que permite conocer en qué radio funcionan.
+
+```{r}
+ggplot(vuelos3) + geom_histogram(aes(x = DISTANCE), bins = 50, colour = "white") + ggtitle("Histograma de la distancia recorrida por los vuelos")
+```
+
+La mayoría de los vuelos recorrieron una distanca de entre 0 y 1000 millas, unos 1609 km. Aunque parezca una distancia considerable, teniendo en cuenta el tamaño de Estados Unidos, no lo es tanto, ya que la distancia entre la costa este y la costa oeste es de aproximadamente 2500 millas de media. 
+
+Por lo que viendo el resultado, se podría decir que la mayoría de los vuelos que se hicieron fueron de medio radio.
+
+<p>&nbsp;</p>
+
+
+Como curiosidad, se va a analizar cuál ha sido el vuelo más corto que se ha realizado y cuál el más largo.
+
+```{r}
+max(vuelos3$DISTANCE)
+```
+
+```{r}
+vuelos3 %>% filter(DISTANCE == 4983)
+```
+
+Los vuelos que han recorrido una distancia mayor han sido los que se realizaron entre el aeropuerto internacional John F. Kennedy (JFK) de Nueva York y el aeropuerto internacional Daniel K. Inouye (HNL) de Honolulu, Hawái o viceversa. Estos vuelos recorrieron una distancia de 4983 millas, casi 8020 km.
+
+<p>&nbsp;</p>
+
+
+A continuación, se representa de manera gráfica la distancia entre los dos aeropuertos mencionados:
+
+```{r}
+aeropuertos_distancia_maxima <- aeropuertos %>%
+  filter(IATA_CODE == "JFK" | IATA_CODE == "HNL")
+aeropuertos_distancia_maxima
+```
+
+```{r}
+{map('world')
+points(x = aeropuertos_distancia_maxima$LONGITUDE, y = aeropuertos_distancia_maxima$LATITUDE, col = "blue")
+title(main = "Vuelo más largo realizado")}
+```
+
+<p>&nbsp;</p>
+
+
+Ahora se pasa al vuelo con la distancia mínima:
+
+```{r}
+min(vuelos3$DISTANCE)
+```
+
+```{r}
+vuelos3 %>% filter(DISTANCE == 31)
+```
+
+Los vuelos más cortos que se realizaron en enero de 2019 recorrieron 31 millas, menos de 50 km. Estos vuelos tuvieron como origen el aeropuerto Petersburg James A. Johnson (PSG), situado en Alaska, y como destino el aeropuerto Wrangell Airport (WRG), también en Alaska.
+
+<p>&nbsp;</p>
+
+
+Siendo la representación gráfica de la localización de los aeropuertos:
+
+```{r}
+aeropuertos_distancia_minima <- aeropuertos %>%
+  filter(IATA_CODE == "PSG" | IATA_CODE == "WRG")
+aeropuertos_distancia_minima
+```
+
+```{r}
+{map('world')
+points(x = aeropuertos_distancia_minima$LONGITUDE, y = aeropuertos_distancia_minima$LATITUDE, col = "blue")
+title(main = "Vuelo más corto realizado")}
+```
+
+<p>&nbsp;</p>
+
+
+También se van a analizar los valores atípicos en la distancia de los vuelos, para ello primero obtenemos la media y la mediana:
+
+```{r}
+summary(vuelos3$DISTANCE)
+```
+
+El valor de la media y la mediana difiere considerablemente, por lo que la media no se puede considerar representativa y lleva a pensar que esta se ha visto afectada por los valores atípicos y que por tanto efectivamente los hay.
+
+Mediante un boxplot de la distancia podemos ver gráficamente si hay valores atípicos, dónde se encuentran y si hay muchos o pocos:
+
+```{r}
+bp = boxplot(vuelos3$DISTANCE, main="Valores atípicos distancia")
+```
+
+Se ven bastantes valores atípicos, estos se encuentran a la derecha (o arriba según aparece representado el boxplot).
+
+El número de valores atípicos que hay se muestra a continuación:
+
+```{r}
+length(bp$out)
+```
+
+En total hay 32279 valores atípicos. 
+
+Las posiciones de estos en el dataset son las siguientes:
+
+```{r}
+which(vuelos3$DISTANCE %in% bp$out)
+```
+
+<p>&nbsp;</p>
+
+
+## Análisis de los aeropuertos
+
+Las variables de los aeropuertos de origen y destino de los vuelos nos permiten conocer cuáles son los aeropuertos que tienen un mayor tráfico y cuáles los que menos.
+
+Primero analizamos los aeropuertos de origen de los vuelos:
+
+```{r}
+aeropuerto_trafico_origen = vuelos3 %>% count(ORIGIN)
+aeropuerto_trafico_origen %>% filter(n == max(aeropuerto_trafico_origen$n))
+```
+
+El aeropuerto del que sale un mayor número de vuelos es el aeropuerto internacional Hartsfield-Jackson o aeropuerto de Atlanta (ATL).
+
+<p>&nbsp;</p>
+
+
+```{r}
+aeropuerto_trafico_origen %>% filter(n == min(aeropuerto_trafico_origen$n))
+```
+
+Mientras que el aeropuerto del que sale un menor número de vuelos es el de Ogden-Hinckley (OGD), un aeropuerto de Utah del que solo salieron 8 vuelos en enero de 2019.
+
+<p>&nbsp;</p>
+
+
+Se vuelve a hacer lo mismo pero con los aeropuertos de destino:
+
+```{r}
+aeropuerto_trafico_destino = vuelos3 %>% count(DEST)
+aeropuerto_trafico_destino %>% filter(n == max(aeropuerto_trafico_destino$n))
+```
+
+Al igual que sucedía con el aeropuerto de origen de los vuelos, el aeropuerto de Atlanta es el que tiene la mayor cantidad de vuelos con destino a él.
+
+<p>&nbsp;</p>
+
+
+```{r}
+aeropuerto_trafico_destino %>% filter(n == min(aeropuerto_trafico_destino$n))
+```
+
+Y lo mismo ocurre con el aeropuerto al que llegan menos vuelos, el aeropuerto de Ogden-Hinckley.
+
+<p>&nbsp;</p>
+
+
+Los resultados obtenidos tienen sentido ya que el aeropuerto de Atlanta es el aeropuerto con mayor tráfico de Estados Unidos y del mundo.
+
+La representación de la localización del aeropuerto de Atlanta es:
+
+```{r}
+aeropuerto_mas_transitado <- aeropuertos %>%
+  filter(IATA_CODE == "ATL")
+(aeropuerto_mas_transitado)
+```
+
+```{r}
+{map('usa')
+points(x = aeropuerto_mas_transitado$LONGITUDE, y = aeropuerto_mas_transitado$LATITUDE, col = "blue")
+title(main = "Aeropuerto de Atlanta")}
+```
+
+<p>&nbsp;</p>
+
+
+## Análisis de las aerolíneas
+
+Ya que el dataset contiene información de la aerolínea que ha operado el vuelo, podemos hacer un análisis de cuáles son las aerolíneas que realizaron un mayor número de vuelos, cuáles realizaron vuelos más cortos, cuáles realizaron vuelos más largos...
+
+Lo primero es conocer las diferentes aerolíneas que operaron algún vuelo:
+
+```{r}
+vuelos_aerolinea = vuelos3 %>%
+  count(OP_CARRIER)
+(vuelos_aerolinea)
+```
+
+En enero de 2019, 17 aerolíneas diferentes operaron algún vuelo con origen y destino en Estados Unidos.
+
+```{r}
+vuelos_aerolinea %>% filter(n == max(vuelos_aerolinea$n))
+```
+
+La aerolínea que realizó más vuelos fue la que tiene como código IATA: WN, que corresponde con Southwest Airlines Co. Esta es una aerolínea de bajo costo con sede en Dallas, Texas. Es la mayor aerolínea de Estados Unidos por número de pasajeros domésticos transportados al año, por lo que tiene sentido el resultado obtenido.
+
+```{r}
+vuelos_aerolinea %>% filter(n == min(vuelos_aerolinea$n))
+```
+
+La aerolínea Allegiant Air, con código IATA G4 es la que operó un menor número de vuelos. Esta es otra aerolínea de bajo costo con sede en Summerlin, Nevada.
+
+<p>&nbsp;</p>
+
+
+Para comparar más fácilmente la magnitud de los resultados, se representan mediante un gráfico de barras:
+
+```{r}
+ggplot(vuelos_aerolinea) + geom_col(mapping = aes(x = OP_CARRIER, y = n)) + ggtitle("Número de vuelos por aerolínea")
+```
+
+Se puede observar la gran diferencia en el número de vuelos operados por las 4 aerolíneas que operaron más vuelos en comparación con el resto de aerolíneas.
+
+<p>&nbsp;</p>
+
+
+Otro dato interesante a analizar es qué aerolíneas son las que operan en corto radio y cuáles en largo radio.
+
+```{r}
+distancia_vuelos_aerolinea = vuelos3 %>%
+  group_by(OP_CARRIER) %>%
+  summarise(media = mean(DISTANCE)) 
+(distancia_vuelos_aerolinea)
+```
+
+```{r}
+distancia_vuelos_aerolinea %>% filter(media == max(distancia_vuelos_aerolinea$media))
+```
+
+La aerolínea que ha operado los vuelos más largos es AS, Alaska Airlines Inc., con una media de 1323.463	millas por vuelo.
+
+```{r}
+distancia_vuelos_aerolinea %>% filter(media == min(distancia_vuelos_aerolinea$media))
+
+```
+
+Mientras que la aerolínea PSA Airlines Inc., con código OH, es la que ha operado los vuelos con menor recorrido, 387.1068 millas de media.
+
+<p>&nbsp;</p>
+
+
+En el siguiente gráfico se puede ver la relación entre la distancia recorrida por los vuelos operados por cada una de las aerolíneas:
+
+```{r}
+ggplot(vuelos3) + geom_point(mapping = aes(x = OP_CARRIER, y = DISTANCE)) + ggtitle("Relación entre las aerolíneas y la distancia recorrida")
+```
+
+Además de lo comentado anteriormente sobre la aerolínea que opera los vuelos más cortos y más largos, otras aerolíneas que operan vuelos de corto radio son Envoy Air (MQ), ExpressJet Airlines LLC (EV) o Endeavor Air (9E), mientras que algunas de los que operan vuelos de largo radio son United Airlines Inc. (UA), JetBlue Airways (B6) o Frontier Airlines (F9).
+
+<p>&nbsp;</p>
+
+
+## Análisis de los días
+
+El análisis de los días de la semana y del mes en los que se produce un mayor número de vuelos es interesante para conocer qué días la gente viaja más.
+
+El número de vuelos que se ha realizado cada día del mes de enero es:
+
+```{r}
+vuelos_dia = vuelos3 %>%
+  count(DAY_OF_MONTH)
+(vuelos_dia)
+```
+
+Si se representa el resultado mediante una gráfica, se obtiene:
+
+```{r}
+ggplot(vuelos_dia) + geom_col(mapping = aes(x = DAY_OF_MONTH, y = n)) + ggtitle("Número de vuelos cada día de enero de 2019")
+```
+
+Donde se puede observar que el día 2 es el día en el que hubo mayor número de vuelos y el día 19 el que se realizaron menos. 
+
+Una vez que se ha comprobado gráficamente se va a calcular numéricamente para estar seguros de las conclusiones:
+
+```{r}
+vuelos_dia %>% filter(n == max(vuelos_dia$n))
+
+```
+
+Efectivamente el 2 de enero de 2019 el día en el que se produjo un mayor número de vuelos, en concreto 20170 vuelos.
+
+```{r}
+vuelos_dia %>% filter(n == min(vuelos_dia$n))
+```
+
+En cambio, el 19 de enero solo hubo 13382 vuelos, el día con menos vuelos realizados de todo el mes.
+
+<p>&nbsp;</p>
+
+
+Sin analizar los datos, se puede pensar que el viernes o el fin de semana son los días que más vuelos se realizan al no tener la gente que trabajar, o por el controario, que entre semana hay más vuelos ya que mucha gente se desplaza por temas laborales. A continuación se va a analizar en qué días de la semana se realizan más vuelos.
+
+```{r}
+vuelos_semana = vuelos3 %>%
+  count(DAY_OF_WEEK)
+(vuelos_semana)
+```
+
+Viendo los resultados llama la atención que los días en los que se producen más vuelos son los miércoles y los jueves, mientras que los sábados son el día de la semana en el que se realizan menos vuelos. Esto se puede explicar porque normalmente las compañías aéreas suben los precios para viajar el viernes y los fin de semanas. 
+
+Mediante una representación gráfica de los datos obtenidos se puede ver mejor la comparación entre la cantidad de vuelos realizados cada día de la semana:
+
+```{r}
+ggplot(vuelos_semana) + geom_col(mapping = aes(x = DAY_OF_WEEK, y = n)) + ggtitle("Número de vuelos por día de la semana")
+```
+
+<p>&nbsp;</p>
+
+
+## Conclusión
+
+Este análisis del dataset ha permitido entenderlo y conocerlo con más detalle, saber cuáles son los vuelos más largos y más cortos, qué aerolíneas operan en corto radio o largo radio, qué días del mes y de la semana se realizan más vuelos y las diferentes incidencias que ha habido, ya sea de retrasos, cancelaciones o desvíos. 
+
+En resumen, se ha conseguido entender mejor el sector aeronáutico de Estados Unidos y esto permite y facilita la toma de futuras decisiones, como por ejemplo la decisión de entrar o no a operar en dicho sector con una nueva compañía aeronáutica.
+
+<p>&nbsp;</p>
+
